@@ -11,6 +11,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -38,15 +39,60 @@ jobs:
       - name: Make Gradle wrapper executable
         run: chmod +x ./gradlew
 
-      - name: Build ARM release APKs
+      - name: Build release APK
         env:
           VERSION_CODE: '99999'
           VERSION_NAME: '99.99.99'
-        run: ./gradlew :app:assembleStandardRelease --no-daemon --stacktrace
+        run: |
+          ./gradlew :app:assembleStandardRelease --no-daemon --stacktrace
 
-      - name: Upload APK
+      - name: Generate test signing key
+        run: |
+          keytool -genkeypair \
+            -v \
+            -keystore release-test.keystore \
+            -alias level-five-tv \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass levelfive123 \
+            -keypass levelfive123 \
+            -dname "CN=LEVEL FIVE TV, OU=LEVEL FIVE, O=LEVEL FIVE TV, L=Guadalajara, ST=Jalisco, C=MX"
+
+      - name: Sign release APK
+        run: |
+          APK=$(find app/build/outputs/apk/standard/release -type f -name "*.apk" | head -n 1)
+
+          if [ -z "$APK" ]; then
+            echo "ERROR: No se encontró ningún APK."
+            exit 1
+          fi
+
+          echo "APK encontrado: $APK"
+
+          zipalign \
+            -p \
+            -f \
+            4 \
+            "$APK" \
+            app/build/outputs/apk/standard/release/LEVEL-FIVE-TV-aligned.apk
+
+          apksigner sign \
+            --ks release-test.keystore \
+            --ks-key-alias level-five-tv \
+            --ks-pass pass:levelfive123 \
+            --key-pass pass:levelfive123 \
+            --out app/build/outputs/apk/standard/release/LEVEL-FIVE-TV-signed.apk \
+            app/build/outputs/apk/standard/release/LEVEL-FIVE-TV-aligned.apk
+
+      - name: Verify APK signature
+        run: |
+          apksigner verify --verbose \
+            app/build/outputs/apk/standard/release/LEVEL-FIVE-TV-signed.apk
+
+      - name: Upload signed APK
         uses: actions/upload-artifact@v4
         with:
-          name: LEVEL-FIVE-TV-standard-release
-          path: app/build/outputs/apk/standard/release/*.apk
+          name: LEVEL-FIVE-TV-signed
+          path: app/build/outputs/apk/standard/release/LEVEL-FIVE-TV-signed.apk
           if-no-files-found: error

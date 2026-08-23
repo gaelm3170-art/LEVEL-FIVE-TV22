@@ -70,14 +70,16 @@ jobs:
 
           echo "APK encontrado: $APK"
 
-          zipalign \
+          BUILD_TOOLS="$ANDROID_HOME/build-tools/36.0.0"
+
+          "$BUILD_TOOLS/zipalign" \
             -p \
             -f \
             4 \
             "$APK" \
             app/build/outputs/apk/standard/release/LEVEL-FIVE-TV-aligned.apk
 
-          apksigner sign \
+          "$BUILD_TOOLS/apksigner" sign \
             --ks release-test.keystore \
             --ks-key-alias level-five-tv \
             --ks-pass pass:levelfive123 \
@@ -87,7 +89,7 @@ jobs:
 
       - name: Verify APK signature
         run: |
-          apksigner verify --verbose \
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose \
             app/build/outputs/apk/standard/release/LEVEL-FIVE-TV-signed.apk
 
       - name: Upload signed APK
